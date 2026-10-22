@@ -1,3 +1,5 @@
+> **BiDex-100 integration:** see [BIDEX100.md](BIDEX100.md) for environment setup, training and evaluation, or the [Document page](https://bidex-100.github.io/BiDex-100/document.html).
+
 # openpi
 
 openpi holds open-source models and packages for robotics, published by the [Physical Intelligence team](https://www.physicalintelligence.company/).

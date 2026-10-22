@@ -55,6 +55,27 @@ class CheckpointWeightLoader(WeightLoader):
 
 
 @dataclasses.dataclass(frozen=True)
+class PartialCheckpointWeightLoader(WeightLoader):
+    """Loads weights from a checkpoint, but drops any loaded array whose shape
+    does not match the reference (built-from-config) parameter shape. The
+    dropped leaves retain their freshly-initialized values in the model.
+
+    This is used when the model config changes a structural dimension (e.g.
+    `action_dim`) relative to the released checkpoint: fully-loaded layers are
+    transferred, and only the shape-mismatched projection layers are retrained
+    from random init.
+    """
+
+    params_path: str
+
+    def load(self, params: at.Params) -> at.Params:
+        # We are loading np.ndarray and relying on the training code to properly convert and shard the params.
+        loaded_params = _model.restore_params(download.maybe_download(self.params_path), restore_type=np.ndarray)
+        # Add all missing LoRA weights, and skip shape-mismatched projection layers.
+        return _merge_params(loaded_params, params, missing_regex=".*lora.*", skip_shape_mismatch=True)
+
+
+@dataclasses.dataclass(frozen=True)
 class PaliGemmaWeightLoader(WeightLoader):
     """Loads weights from the official PaliGemma checkpoint.
 
@@ -73,7 +94,9 @@ class PaliGemmaWeightLoader(WeightLoader):
         return _merge_params(loaded_params, params, missing_regex=".*")
 
 
-def _merge_params(loaded_params: at.Params, params: at.Params, *, missing_regex: str) -> at.Params:
+def _merge_params(
+    loaded_params: at.Params, params: at.Params, *, missing_regex: str, skip_shape_mismatch: bool = False
+) -> at.Params:
     """Merges the loaded parameters with the reference parameters.
 
     Args:
@@ -91,6 +114,9 @@ def _merge_params(loaded_params: at.Params, params: at.Params, *, missing_regex:
     result = {}
     for k, v in flat_loaded.items():
         if k in flat_ref:
+            if skip_shape_mismatch and v.shape != flat_ref[k].shape:
+                result[k] = flat_ref[k]
+                continue
             result[k] = v.astype(flat_ref[k].dtype) if v.dtype != flat_ref[k].dtype else v
 
     flat_loaded.clear()

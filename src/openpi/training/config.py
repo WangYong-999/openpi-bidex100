@@ -65,6 +65,8 @@ class AssetsConfig:
 class DataConfig:
     # LeRobot repo id. If None, fake data will be created.
     repo_id: str | None = None
+    # Explicit local task datasets for the BiDex-100 co-training corpus.
+    bidex_dataset_paths: tuple[str, ...] = ()
     # Directory within the assets directory containing the data assets.
     asset_id: str | None = None
     # Contains precomputed normalization stats. If None, normalization will not be performed.
@@ -969,6 +971,11 @@ _CONFIGS = [
     *roboarena_config.get_roboarena_configs(),
     *polaris_config.get_polaris_configs(),
 ]
+
+# Register the isolated BiDex-100 integration after the core types are defined.
+from openpi.training.bidex_config import get_bidex_configs  # noqa: E402
+
+_CONFIGS.extend(get_bidex_configs())
 
 if len({config.name for config in _CONFIGS}) != len(_CONFIGS):
     raise ValueError("Config names must be unique.")

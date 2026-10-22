@@ -137,6 +137,24 @@ def create_torch_dataset(
     if repo_id == "fake":
         return FakeDataset(model_config, num_samples=1024)
 
+    if repo_id == "BiDex-100" and not data_config.bidex_dataset_paths:
+        raise ValueError("No BiDex-100 datasets found. Set BIDEX_DATA_ROOT to datasets/lerobotv21.")
+
+    if data_config.bidex_dataset_paths:
+        datasets = []
+        for task_path in data_config.bidex_dataset_paths:
+            meta = lerobot_dataset.LeRobotDatasetMetadata("BiDex-100/task", root=task_path)
+            task_dataset = lerobot_dataset.LeRobotDataset(
+                "BiDex-100/task", root=task_path,
+                delta_timestamps={key: [t / meta.fps for t in range(action_horizon)]
+                                  for key in data_config.action_sequence_keys},
+            )
+            if data_config.prompt_from_task:
+                task_dataset = TransformedDataset(
+                    task_dataset, [_transforms.PromptFromLeRobotTask(meta.tasks)])
+            datasets.append(task_dataset)
+        return torch.utils.data.ConcatDataset(datasets)
+
     dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
     dataset = lerobot_dataset.LeRobotDataset(
         data_config.repo_id,
